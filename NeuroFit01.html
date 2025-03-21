@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroFit - Entrenamiento Cerebral Biométrico</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+</head>
+<body class="bg-gray-900 text-white text-center flex flex-col items-center p-8">
+
+    <h1 class="text-3xl font-bold mb-4">NeuroFit: Optimiza tu Mente</h1>
+
+    <!-- Video de la cámara -->
+    <video id="video" autoplay playsinline class="w-64 h-48 border-4 border-blue-500 rounded-lg"></video>
+
+    <!-- Botón para conectar con sensor de frecuencia cardíaca -->
+    <button id="connectHeartRate" class="mt-4 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700">
+        Conectar Sensor Cardíaco
+    </button>
+    <p id="heartRate" class="mt-2 text-lg">Frecuencia Cardíaca: -- BPM</p>
+
+    <!-- Indicador de estrés -->
+    <p id="stressLevel" class="mt-4 text-xl font-semibold"></p>
+
+    <!-- Scripts -->
+    <script>
+        // Activar la cámara y analizar expresiones con BlazeFace (TensorFlow.js)
+        async function startFaceDetection() {
+            const video = document.getElementById("video");
+            const model = await blazeface.load();
+
+            // Acceder a la cámara
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (error) {
+                console.error("Error accediendo a la cámara:", error);
+                return;
+            }
+
+            async function detectFace() {
+                const predictions = await model.estimateFaces(video, false);
+                if (predictions.length > 0) {
+                    document.getElementById("stressLevel").innerText = "😟 Estrés detectado, respira profundo";
+                } else {
+                    document.getElementById("stressLevel").innerText = "😊 Relajado";
+                }
+                requestAnimationFrame(detectFace);
+            }
+            detectFace();
+        }
+        startFaceDetection();
+
+        // Conectar con sensor de frecuencia cardíaca por Bluetooth
+        document.getElementById("connectHeartRate").addEventListener("click", async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ["heart_rate"]
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService("heart_rate");
+                const characteristic = await service.getCharacteristic("heart_rate_measurement");
+
+                characteristic.addEventListener("characteristicvaluechanged", event => {
+                    const heartRate = event.target.value.getUint8(1);
+                    document.getElementById("heartRate").innerText = `Frecuencia Cardíaca: ${heartRate} BPM`;
+                });
+
+                await characteristic.startNotifications();
+                document.getElementById("heartRate").innerText = "Conectado, midiendo...";
+            } catch (error) {
+                console.error("Error conectando sensor cardíaco:", error);
+                alert("Error conectando sensor cardíaco");
+            }
+        });
+    </script>
+
+</body>
+</html>
